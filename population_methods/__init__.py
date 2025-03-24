@@ -41,9 +41,10 @@ class Population:
             :param generation: Generación de la que vamos a obtener la info
             :return: Diccionario con media, mediana, desviación estándar, cuartiles, rango, moda y más.
             """
-        values = np.array(self.populuation_dict[generation])
+        values = np.array([z.individual_fitness for z in self.populuation_dict[generation] if not z.malformation])
 
         data = {
+            "generation": [generation],
             "count": [len(values)],
             "mean": [np.mean(values)],
             "median": [np.median(values)],

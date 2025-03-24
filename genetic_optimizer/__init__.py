@@ -117,9 +117,6 @@ class GenethicOptimizer:
             if self.verbose:
                 self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
 
-            for individual in self.POPULATION.populuation_dict[gen]:
-                self.IT.info_print(f"Malformation: {individual.malformation} - Values: {individual.get_individual_values()}")
-
     def validate_input_parameters(self) -> bool:
         """
         Método para validar los inputs que se han cargado en el constructor
@@ -182,9 +179,10 @@ class GenethicOptimizer:
         self.IT.sub_intro_rint("Información de los individuos y los fitness")
         for i, ind in enumerate([z for z in individual_generation_list if z.generation == generation]):
             pad_number = lambda num: str(num).zfill(len(str(self.num_individuals)))
-            self.IT.info_print(f"Individuo {pad_number(i + 1)}: {ind.get_individual_values()} - Generación: {ind.generation} - Fitness: {ind.individual_fitness}")
+            self.IT.info_print(f"Individuo {pad_number(i + 1)}: {ind.get_individual_values()} - Generación: {ind.generation} - [Fitness]: {ind.individual_fitness}")
 
         self.IT.sub_intro_rint(f"Información de la evolución de las distribuciones en cada generación")
+        self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)
 
 
 """def objective_function(ind: Individual):
@@ -239,11 +237,11 @@ def example_1_bounds_no_predefinidos():
     # -- Creamos el diccionario de bounds
     bounds = BoundCreator()
     bounds.add_interval_bound("n_estimators", 100, 1000, 50, 1500, "int")
-    bounds.add_predefined_bound("max_depth", (1, 3, 5, 7, 9), "int")
+    bounds.add_predefined_bound("max_depth", (1, 2, 3, 4, 5, 6, 7, 8, 9), "int")
 
     print(GenethicOptimizer(bounds.get_bound(),
-                            5,
                             20,
+                            100,
                             objective_function,
                             "maximize",
                             "ea_simple",
