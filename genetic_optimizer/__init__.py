@@ -1,15 +1,16 @@
 from info_tools import InfoTools
-from pandas_tools import PandasTools
-from typing import Callable, Literal, Dict, Tuple, Union, List
+from typing import Callable, Dict
 from tournament_methods import *
-from bounds import BoundRandomCreator, BoundPredefinedCreator
+from bounds import BoundCreator
 from individuals import Individual
+from reproduction_methods import Reproduction
+from mutation_methods import Mutation
+from population_methods import Population
 
 
 class GenethicOptimizer:
     def __init__(self,
-                 bounds_dict_random: Dict[str, Tuple[Union[int, float]]] | None,
-                 bounds_dict_predefined: Dict[str, Tuple[Union[int, float]]] | None,
+                 bounds_dict: Dict,
                  num_generations: int,
                  num_individuals: int,
                  objective_function: Callable,
@@ -25,10 +26,7 @@ class GenethicOptimizer:
         """
         Clase-Objeto padre para crear un algoritmo genético cuántico basado en QAOA y generacion de aleatoriedad cuántica
         en lo respectivo a mutaciones y cruces reproductivos.
-        :param bounds_dict_random: Diccionario en el que se definen los parámetros a optimizar y sus valores, ej. '{learning_rate: (0.0001, 0.1)}'
-        Se utiliza cuando los valores pueden oscilar en un rango sin romper la lógica de negocio.
-        :param bounds_dict_predefined: Diccionario en el que se definen los parámetros a optimizar y sus valores, ej. '{swich_1: (-1, 0, 1), swich_2: (-1, 0, 1)}'
-        Se utiliza cuando los valores a optimizar están predefinidos y no pueden variar. En este caso los individuos no pueden tener valores diferentes de los predefinidos.
+        :param bounds_dict: Diccionario en el que se definen los parámetros a optimizar y sus valores, ej. '{learning_rate: (0.0001, 0.1)}'
         :param num_generations: Numero de generaciones que se van a ejecutar
         :param num_individuals: Numero de Individuos iniciales que se van a generar
         :param objective_function: Función objetivo que se va a emplear para puntuar a cada individuo (debe retornar un float)
@@ -51,9 +49,7 @@ class GenethicOptimizer:
         - Exploración agresiva 1.5 - 3.0
         """
         # -- Almaceno propiedades
-        self.bounds_dict_random: Dict[str, Tuple[Union[int, float]]] | None = bounds_dict_random
-        self.bounds_dict_predefined: Dict[str, Tuple[Union[int, float]]] | None = bounds_dict_predefined
-        self.predefined_bounds_problem: bool = False  # Defino esta boleana para marcar si estamos trabajando con bounds predefinidos o no
+        self.bounds_dict: Dict = bounds_dict
         self.num_generations: int = num_generations
         self.num_individuals: int = num_individuals
         self.objective_function: Callable = objective_function
@@ -67,62 +63,62 @@ class GenethicOptimizer:
         self.mutation_size: float = mutation_size
         self.verbose: bool = verbose
 
-        # -- Instancio la clase GenethicTournamentMethods en GTM
+        # -- instancio info tools para los prints
+        self.IT: InfoTools = InfoTools()
+
+        # -- Instancio la clase GenethicTournamentMethods en GTM y almaceno el torneo
         self.GTM: Tournament = self.get_tournament_method()
 
         # -- Almaceno cualquiera de los bounds_dict en self.bounds_dict y modifico self.predefined_bounds_problem
-        if self.bounds_dict_random is None and self.bounds_dict_predefined is None:
+        if self.bounds_dict is None:
             raise ValueError("Se requiere uno de estos dos parámetros: bounds_dict_random, bounds_dict_predefined. Ambos han sido rellenados con None")
-        if self.bounds_dict_random is not None and self.bounds_dict_predefined is not None:
-            raise ValueError("QGO solo puede trabajar con uno de estos dos parametros: bounds_dict_random, bounds_dict_predefined. Ambos tienen valor, debes escoger uno")
-        if self.bounds_dict_predefined is not None:
-            self.predefined_bounds_problem = True
-            self.bounds_dict: Dict[str, Tuple[Union[int, float]]] = self.bounds_dict_predefined
-        else:
-            self.predefined_bounds_problem = False
-            self.bounds_dict: Dict[str, Tuple[Union[int, float]]] = self.bounds_dict_random
 
         if self.verbose:
-            print(f"\n######################    Bounds_dict y valores a combinar     ######################\n")
-            print(f"[INFO] ------> Los posibles valores a combinar son predefinidos: {self.predefined_bounds_problem}")
-            print(f"[INFO] ------> bounds_dict: {self.bounds_dict}")
+            self.IT.sub_intro_rint(f"Bounds_dict y valores a combinar")
+            for k, v in self.bounds_dict.items():
+                self.IT.info_print(f"{k}: {v}")
 
         # -- Validamos los inputs
         self.validate_input_parameters()
 
-        # -- En base a si los bounds son predefinidos o no, Creamos los individuos y los almacenamos en una lista
-        self.individuals_list: List[Individual] = []
-        for i in range(self.num_individuals):
-            self.individuals_list.append(Individual(self.bounds_dict, None, 0, self.predefined_bounds_problem))
+        # -- Creamos el objeto poblacion y la poblacion inicial
+        self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals)
+
+        # -- Creamos las listas de individuos que vamos a ir usando
+        self.POPULATION.create_population()
+
+        # -- Pasamos a cada individuo de la generacion 0 por la funcion de coste
+        for individual in self.POPULATION.populuation_dict[0]:
+            individual.individual_fitness = self.objective_function(individual)
 
         if self.verbose:
-            print(f"\n######################    Individuos 1a generacion     ######################\n")
-            for i, ind in enumerate(self.individuals_list):
-                print(f"Individuo {i + 1}: {ind.get_individual_values()} - Generación: {ind.generation}")
-        breakpoint()
+            self.print_generation_info(self.POPULATION.populuation_dict[0], 0)
 
-        # -- TODO: Entramos a la parte genetica iterando por generaciones
-        for gen in self.num_generations:
+        # -- Entramos a la parte genetica iterando por generaciones
+        for gen in range(1, self.num_generations):
 
-            # TODO: Ejecutamos el torneo para obtener los hijos y creamos la child_list
+            # -- Ejecutamos el torneo para obtener los padres ganadores en base a los individuos de la generacion anterior
+            winners_list: List[Individual] = self.GTM.run_tournament(self.POPULATION.populuation_dict[gen - 1])
 
-            # -- Se supone que ya hemos obtenido los hijos
-            child_list: List[List] = [
-                [0.08910494983403751, 36.5],
-                [0.07170969052131343, 71.5],
-                [0.005021695515233724, 16.5],
-                [0.015734475416848345, 856.5],
-            ]
+            # -- Creamos los hijos y los agregamos a la lista de individuos
+            children_list: List[Individual] = Reproduction(winners_list, self.num_individuals, False).run_reproduction()
 
-            # -- Agregamos los individuos a la lista
-            self.individuals_list += [Individual(self.bounds_dict, child_vals, gen, self.predefined_bounds_problem) for child_vals in child_list]
+            # -- Mutamos los individuos
+            children_list = Mutation(children_list, self.mutate_probability).run_mutation()
 
-            for individual in [ind for ind in self.individuals_list if ind.generation == gen]:
-                print(f"Malformation: {individual.malformation} - Values: {individual.get_individual_values()}")
+            # -- Agregamos los individuos al diccionario de poblacion en su generacion correspondiente
+            self.POPULATION.add_generation_population(children_list, gen)
 
-            # self.individuals_list = Individuals(self.bounds_dict, self.num_individuals, False, child_list).get_individuals()
+            # -- Pasamos a cada individuo por la funcion de coste
+            for individual in self.POPULATION.populuation_dict[gen]:
+                if not individual.malformation:
+                    individual.individual_fitness = self.objective_function(individual)
 
-            print(self.individuals_list)
+            if self.verbose:
+                self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
+
+            for individual in self.POPULATION.populuation_dict[gen]:
+                self.IT.info_print(f"Malformation: {individual.malformation} - Values: {individual.get_individual_values()}")
 
     def validate_input_parameters(self) -> bool:
         """
@@ -130,14 +126,17 @@ class GenethicOptimizer:
         :return: True si todas las validaciones son correctas Excepction else
         """
 
-        # -- Validar el bounds_dict
-        if not all(isinstance(valor, (int, float)) for param_data in self.bounds_dict.values()
-                   for key in ["limits", "malformation_limits"] if key in param_data for valor in param_data[key]):
-            raise ValueError("bounds_dict: No todos los valores en bounds_dict son int o float.")
+        # -- Validar el bounds_dict en cada caso (interval y predefined)
 
-        if not self.predefined_bounds_problem:
-            if not all(len(values['limits']) == 2 for values in self.bounds_dict.values()):
-                raise ValueError("bounds_dict: has seleccionado un bounds_dict aleatorio, pero has agregado mas elementos de un limite máximo y uno mínimo.")
+        # INTERVAL
+        interval_bounds_dict: dict = {k: v for k, v in self.bounds_dict.items() if v["bound_type"] == "interval"}
+        if not all(isinstance(valor, (int, float)) for param in interval_bounds_dict for key in ["limits", "malformation_limits"] if key in param for valor in param[key]):
+            raise ValueError("bounds_dict: No todos los valores en los bounds_dict interval son int o float.")
+
+        # PREDEFINED
+        predefined_bounds_dict: dict = {k: v for k, v in self.bounds_dict.items() if v["bound_type"] == "predefined"}
+        if not all(isinstance(valor, (int, float)) for param in predefined_bounds_dict for key in ["limits", "malformation_limits"] if key in param for valor in param[key]):
+            raise ValueError("bounds_dict: No todos los valores en los bounds_dict interval son int o float.")
 
         # -- Validar Enteros num_generations, num_individuals, podium_size
         if not isinstance(self.num_generations, int):
@@ -176,51 +175,84 @@ class GenethicOptimizer:
         """
         match self.tournament_method:
             case "ea_simple":
-                return EaSimple(self.podium_size)
+                return EaSimple(self.podium_size, self.problem_type)
+
+    def print_generation_info(self, individual_generation_list: List[Individual], generation: int):
+        self.IT.intro_print(f"Individuos generacion {generation}")
+        self.IT.sub_intro_rint("Información de los individuos y los fitness")
+        for i, ind in enumerate([z for z in individual_generation_list if z.generation == generation]):
+            pad_number = lambda num: str(num).zfill(len(str(self.num_individuals)))
+            self.IT.info_print(f"Individuo {pad_number(i + 1)}: {ind.get_individual_values()} - Generación: {ind.generation} - Fitness: {ind.individual_fitness}")
+
+        self.IT.sub_intro_rint(f"Información de la evolución de las distribuciones en cada generación")
+
+
+"""def objective_function(ind: Individual):
+    v = ind.get_individual_values()
+    return (1 - v["learning_rate"]) + v["batch_size"] / 4"""
+
+
+# -- Definimos la función objetivo
+def objective_function(individual: Individual) -> float:
+    import numpy as np
+    from sklearn.datasets import load_diabetes
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import accuracy_score
+    from sklearn.preprocessing import StandardScaler
+
+    # -- Cargamos el dataset de diabetes
+    data = load_diabetes()
+    individual_dict: dict = individual.get_individual_values()
+    X, y = data.data, data.target
+
+    # -- Convertimos la variable objetivo en un problema de clasificación binaria (diabetes alta o baja)
+    y = (y > np.median(y)).astype(int)  # 1 si es mayor a la mediana, 0 si es menor
+
+    # -- Dividimos en conjunto de entrenamiento y prueba
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # -- Normalizamos los datos
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Función objetivo para entrenar el modelo y calcular la precisión
+    def train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test):
+        model = RandomForestClassifier(n_estimators=int(individual_dict["n_estimators"]),
+                                       max_depth=individual_dict["max_depth"],
+                                       random_state=42)
+
+        # -- Entrenamos el modelo, predecimos y calculamos el accuracy
+        model.fit(X_train_scaled, y_train)
+        y_pred = model.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        return accuracy
+
+    # -- Entrenamos y evaluamos el modelo
+    accuracy = train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test)
+
+    return accuracy
 
 
 def example_1_bounds_no_predefinidos():
     # -- Creamos el diccionario de bounds
-    bounds = BoundRandomCreator()
-    bounds.add_bound("learning_rate", 0.0001, 0.1, 0.000001, 1, "float")
-    bounds.add_bound("batch_size", 12, 64, 8, 124, "int")
+    bounds = BoundCreator()
+    bounds.add_interval_bound("n_estimators", 100, 1000, 50, 1500, "int")
+    bounds.add_predefined_bound("max_depth", (1, 3, 5, 7, 9), "int")
 
     print(GenethicOptimizer(bounds.get_bound(),
-                            None,
                             5,
                             20,
-                            lambda x: x + 1,
-                            "minimize",
+                            objective_function,
+                            "maximize",
                             "ea_simple",
                             3,
                             0.2,
                             0.25,
                             0.0,
                             0.5,
-                            ))
-
-
-def example_2_bounds_predefinidos():
-    # -- Creamos el diccionario de bounds
-    bounds = BoundPredefinedCreator()
-    bounds.add_bound("learning_rate", [0.1, 0.01, 0.001, 0.0001], "float")
-    bounds.add_bound("batch_size", [16, 32, 64], "int")
-
-    print(GenethicOptimizer(None,
-                            bounds.get_bound(),
-                            5,
-                            20,
-                            lambda x: x + 1,
-                            "minimize",
-                            "ea_simple",
-                            3,
-                            0.2,
-                            0.25,
-                            0.0,
-                            0.5,
-
                             ))
 
 
 example_1_bounds_no_predefinidos()
-# example_2_bounds_predefinidos()

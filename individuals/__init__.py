@@ -3,7 +3,7 @@ from typing import Dict, Union, Tuple, List
 
 
 class Individual:
-    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], child_values: List | None, generation: int, predefined_bounds_problem: bool):
+    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], child_values: List | None, generation: int):
         """
         Clase que va a instanciar los distintos individuos que van a competir.
         :param bounds_dict: Diccionario en el que se definen los parámetros a optimizar y sus valores, ej. '{learning_rate: (0.0001, 0.1)}'
@@ -20,23 +20,25 @@ class Individual:
         # -- Almaceno en una propiedad la generación a la que pertenece el individuo
         self.generation: int = generation
 
-        # -- Almaceno en propiedad si es un problema en el que se predefinen los posibles valores para cada parámetro o bien se puede explorar el espacio de valores
-        self.predefined_bounds_problem: bool = predefined_bounds_problem
-
         # -- Creo la propiedad de valores del individuo
         self._individual_values: Dict[str, Union[int, float]] = {}
 
         # -- Defino la propiedad en la que almacenaré el valor que la función de coste ha tenido para este individuo
-        self.individual_evaluation_result: float | None = None
+        self.individual_fitness: float | None = None
 
         # -- En caso de que no se le pasen los child_list de la generacion, se crean aleatoriamente los valores
         if child_values is None:
 
             for parameter, v in self.bounds_dict.items():
-                if not self.predefined_bounds_problem:
-                    self._individual_values[parameter] = self.generate_random_value((v["limits"][0], v["limits"][1]), v["type"])
+                if v["bound_type"] == "interval":
+                    match v["type"]:
+                        case "int":
+                            self._individual_values[parameter] = int(self.generate_random_value((v["limits"][0], v["limits"][1]), v["type"]))
+                        case "float":
+                            self._individual_values[parameter] = self.generate_random_value((v["limits"][0], v["limits"][1]), v["type"])
+
                 else:
-                    self._individual_values[parameter] = self.generate_possible_value((v["limits"][0], v["limits"][1]), v["type"])
+                    self._individual_values[parameter] = self.generate_possible_value(v["limits"], v["type"])
         else:
             for parameter, cv in zip([z for z in self.bounds_dict.keys()], child_values):
                 self._individual_values[parameter] = cv
@@ -59,9 +61,9 @@ class Individual:
 
         return False
 
-    def get_individual_values(self) -> List[Union[int, float]]:
+    def get_individual_values(self) -> Dict[str, Union[int, float]]:
         """
-        Método que va a devolver los valores del individuo en una lista. por ejemplo, si viene asi: {learning_rate: 0.0125, batch_size: 34}
+        Método que va a devolver los valores del individuo en un diccionario. por ejemplo, si viene asi: {learning_rate: 0.0125, batch_size: 34}
         :return:
         """
         return self._individual_values
@@ -79,4 +81,41 @@ class Individual:
             return random.choice(val_tuple)
         elif data_type == "float":
             return random.choice(val_tuple)
+
+    def __eq__(self, other, decimals=4):
+        """
+        Compara si dos individuos son iguales en base a sus propiedades con precisión decimal.
+
+        :param other: Otro objeto de la clase Individual con el que se realizará la comparación.
+        :param decimals: Número de decimales a considerar en la comparación (por defecto 4).
+
+        :return: True si ambos individuos tienen las mismas propiedades con la precisión dada, False en caso contrario.
+        """
+
+        # Verificar que el otro objeto es de la clase Individual
+        if not isinstance(other, Individual):
+            return False
+
+        # Obtener los valores de los individuos
+        values_self = self.get_individual_values()
+        values_other = other.get_individual_values()
+
+        # Redondear los valores antes de compararlos
+        rounded_self = {k: round(v, decimals) if isinstance(v, float) else v for k, v in values_self.items()}
+        rounded_other = {k: round(v, decimals) if isinstance(v, float) else v for k, v in values_other.items()}
+
+        return rounded_self == rounded_other
+
+    def add_or_update_variable(self, var_name: str, value: int | float) -> None:
+        """
+        Agrega o actualiza una variable de instancia en el objeto Individual.
+
+        :param var_name: Nombre de la variable de instancia.
+        :param value: Valor de la variable (puede ser de cualquier tipo).
+        """
+        setattr(self, f"_{var_name}", value)
+
+    def set_individual_value(self, parameter: str, new_value: float | int):
+        self._individual_values[parameter] = new_value
+        self.malformation = self.exists_malformation()
 
