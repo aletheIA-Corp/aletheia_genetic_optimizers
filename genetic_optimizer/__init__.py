@@ -56,18 +56,14 @@ class GenethicOptimizer:
         self.problem_type: str = problem_type
         self.tournament_method: str = tournament_method
         self.podium_size: int = podium_size
-        self.reproduction_variability: float = reproduction_variability
         self.mutate_probability: float = mutate_probability
-        self.mutation_center_mean: float = mutation_center_mean
-        self.mutation_size: float = mutation_size
-        self.mutation_size: float = mutation_size
         self.verbose: bool = verbose
 
         # -- instancio info tools para los prints
         self.IT: InfoTools = InfoTools()
 
         # -- Instancio la clase GenethicTournamentMethods en GTM y almaceno el torneo
-        self.GTM: Tournament = self.get_tournament_method()
+        self.GTM: Tournament = self.get_tournament_method(self.verbose)
 
         # -- Almaceno cualquiera de los bounds_dict en self.bounds_dict y modifico self.predefined_bounds_problem
         if self.bounds_dict is None:
@@ -117,6 +113,10 @@ class GenethicOptimizer:
             if self.verbose:
                 self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
 
+        # -- Graficamos el resultado de las generaciones
+        self.POPULATION.plot_generation_stats()
+        self.POPULATION.animate_evolution_plotly()
+
     def validate_input_parameters(self) -> bool:
         """
         Método para validar los inputs que se han cargado en el constructor
@@ -143,17 +143,9 @@ class GenethicOptimizer:
         if not isinstance(self.podium_size, int):
             raise ValueError(f"self.podium_size: Debe ser un entero y su tipo es {type(self.podium_size)}")
 
-        # -- Validar Flotantes reproduction_variability, mutate_probability, mutation_center_mean, mutation_size
-        if not isinstance(self.reproduction_variability, float):
-            raise ValueError(f"self.reproduction_variability: Debe ser un float y su tipo es {type(self.reproduction_variability)}")
+        # -- Validar Flotantes mutate_probability
         if not isinstance(self.mutate_probability, float):
             raise ValueError(f"self.mutate_probability: Debe ser un float y su tipo es {type(self.mutate_probability)}")
-        if not isinstance(self.mutation_center_mean, float):
-            raise ValueError(f"self.mutation_center_mean: Debe ser un float y su tipo es {type(self.mutation_center_mean)}")
-        if not isinstance(self.mutation_size, float):
-            raise ValueError(f"self.mutation_size: Debe ser un float y su tipo es {type(self.mutation_size)}")
-        if self.mutation_size < 0:
-            raise ValueError(f"self.mutation_size: Debe ser un float >= 0 y su valor es {self.mutation_size}")
 
         # -- Validar strings problem_type, tournament_method
         if not isinstance(self.problem_type, str):
@@ -165,14 +157,14 @@ class GenethicOptimizer:
 
         return True
 
-    def get_tournament_method(self):
+    def get_tournament_method(self, verbose):
         """
         Método que crea y retorna el tournament seleccionado
         :return:
         """
         match self.tournament_method:
             case "ea_simple":
-                return EaSimple(self.podium_size, self.problem_type)
+                return EaSimple(self.podium_size, self.problem_type, verbose)
 
     def print_generation_info(self, individual_generation_list: List[Individual], generation: int):
         self.IT.intro_print(f"Individuos generacion {generation}")
@@ -185,72 +177,4 @@ class GenethicOptimizer:
         self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)
 
 
-"""def objective_function(ind: Individual):
-    v = ind.get_individual_values()
-    return (1 - v["learning_rate"]) + v["batch_size"] / 4"""
 
-
-# -- Definimos la función objetivo
-def objective_function(individual: Individual) -> float:
-    import numpy as np
-    from sklearn.datasets import load_diabetes
-    from sklearn.model_selection import train_test_split
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import accuracy_score
-    from sklearn.preprocessing import StandardScaler
-
-    # -- Cargamos el dataset de diabetes
-    data = load_diabetes()
-    individual_dict: dict = individual.get_individual_values()
-    X, y = data.data, data.target
-
-    # -- Convertimos la variable objetivo en un problema de clasificación binaria (diabetes alta o baja)
-    y = (y > np.median(y)).astype(int)  # 1 si es mayor a la mediana, 0 si es menor
-
-    # -- Dividimos en conjunto de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # -- Normalizamos los datos
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    # Función objetivo para entrenar el modelo y calcular la precisión
-    def train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test):
-        model = RandomForestClassifier(n_estimators=int(individual_dict["n_estimators"]),
-                                       max_depth=individual_dict["max_depth"],
-                                       random_state=42)
-
-        # -- Entrenamos el modelo, predecimos y calculamos el accuracy
-        model.fit(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
-        accuracy = accuracy_score(y_test, y_pred)
-        return accuracy
-
-    # -- Entrenamos y evaluamos el modelo
-    accuracy = train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test)
-
-    return accuracy
-
-
-def example_1_bounds_no_predefinidos():
-    # -- Creamos el diccionario de bounds
-    bounds = BoundCreator()
-    bounds.add_interval_bound("n_estimators", 100, 1000, 50, 1500, "int")
-    bounds.add_predefined_bound("max_depth", (1, 2, 3, 4, 5, 6, 7, 8, 9), "int")
-
-    print(GenethicOptimizer(bounds.get_bound(),
-                            20,
-                            100,
-                            objective_function,
-                            "maximize",
-                            "ea_simple",
-                            3,
-                            0.2,
-                            0.25,
-                            0.0,
-                            0.5,
-                            ))
-
-
-example_1_bounds_no_predefinidos()
