@@ -50,9 +50,9 @@ def example_1_bounds_no_predefinidos():
     bounds.add_interval_bound("n_estimators", 100, 1000, 50, 1500, "int")
     bounds.add_predefined_bound("max_depth", (1, 2, 3, 4, 5, 6, 7, 8, 9), "int")
 
-    print(GenethicOptimizer(bounds.get_bound(),
+    return GenethicOptimizer(bounds.get_bound(),
                             5,
-                            9,
+                            5,
                             objective_function,
                             "maximize",
                             "ea_simple",
@@ -61,7 +61,10 @@ def example_1_bounds_no_predefinidos():
                             0.25,
                             0.0,
                             0.5,
-                            ))
+                            )
 
 
-example_1_bounds_no_predefinidos()
+genetic_optimizer_object: GenethicOptimizer = example_1_bounds_no_predefinidos()
+genetic_optimizer_object.plot_generation_stats()
+genetic_optimizer_object.plot_evolution_animated()
+genetic_optimizer_object.plot_evolution()

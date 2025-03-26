@@ -113,10 +113,6 @@ class GenethicOptimizer:
             if self.verbose:
                 self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
 
-        # -- Graficamos el resultado de las generaciones
-        self.POPULATION.plot_generation_stats()
-        self.POPULATION.animate_evolution_plotly()
-
     def validate_input_parameters(self) -> bool:
         """
         Método para validar los inputs que se han cargado en el constructor
@@ -176,5 +172,12 @@ class GenethicOptimizer:
         self.IT.sub_intro_rint(f"Información de la evolución de las distribuciones en cada generación")
         self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)
 
+    def plot_generation_stats(self) -> None:
+        self.POPULATION.plot_generation_stats()
 
+    def plot_evolution_animated(self) -> None:
+        self.POPULATION.plot_evolution_animated()
+
+    def plot_evolution(self) -> None:
+        self.POPULATION.plot_evolution()
 
