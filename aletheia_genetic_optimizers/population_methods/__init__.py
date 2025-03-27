@@ -1,20 +1,19 @@
 import colorsys
-
 import pandas as pd
 import plotly.graph_objects as go
-from individuals import Individual
+from aletheia_genetic_optimizers.individuals import Individual
 from typing import List, Dict, Tuple, Union, Literal
 from info_tools import InfoTools
 import scipy.stats as stats
 import numpy as np
-import time
 
-
+# TODO: Crear un metodo para ir viendo la distribucion de los parametros a optimizar
 class Population:
-    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int):
+    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int, problem_restrictions: Literal['bound_restricted', 'full_restricted']):
         self.IT: InfoTools = InfoTools
         self.bounds_dict: Dict[str, Tuple[Union[int, float]]] = bounds_dict
         self.num_individuals: int = num_individuals
+        self.problem_restrictions: Literal['bound_restricted', 'full_restricted'] = problem_restrictions
         self.populuation_dict: Dict[str, List[Individual]] = {0: []}
         self.generations_fitness_statistics_df: pd.DataFrame | None = None
 
@@ -23,10 +22,13 @@ class Population:
         Método para crear la población inicial
         :return:
         """
+
         while len(self.populuation_dict[0]) < self.num_individuals:
-            individual: Individual = Individual(self.bounds_dict, None, 0)
+            individual: Individual = Individual(self.bounds_dict, None, 0, self.problem_restrictions)
             if not individual.malformation:
                 self.populuation_dict[0].append(individual)
+
+    # <editor-fold desc="Getters y setters    ----------------------------------------------------------------------------------------------------------------------------------">
 
     def add_generation_population(self, children_list: List[Individual], generation: int) -> None:
         """
@@ -70,6 +72,7 @@ class Population:
 
         return self.generations_fitness_statistics_df
 
+    # <editor-fold desc="Metodos de graficación    -------------------------------------------------------------------------------------------------------------------------------">
     def plot_generation_stats(self):
         fig = go.Figure()
 
@@ -144,8 +147,10 @@ class Population:
         is_minimization = True if problem_type == "minimize" else False
 
         # Obtengo losfitness mas grandes y mas pequeños
-        max_fitness_value: float = max([ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista]])
-        min_fitness_value: float = min([ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista]])
+        max_fitness_value: float = max(
+            [ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista] if ind.individual_fitness is not None])
+        min_fitness_value: float = min(
+            [ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista] if ind.individual_fitness is not None])
 
         # Preparar los datos para cada fotograma de la animación
         frames = []
@@ -361,9 +366,10 @@ class Population:
         max_individuals = max(len(generation) for generation in data_dict.values())
 
         # Obtengo losfitness mas grandes y mas pequeños
-        max_fitness_value: float = max([ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista]])
-        min_fitness_value: float = min([ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista]])
-        animation_range: float = (max_fitness_value - min_fitness_value) / 100
+        max_fitness_value: float = max(
+            [ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista] if ind.individual_fitness is not None])
+        min_fitness_value: float = min(
+            [ind.individual_fitness for ind in [elemento for sublista in data_dict.values() for elemento in sublista] if ind.individual_fitness is not None])
 
         def generate_distinct_colors(n):
             colors = []
@@ -454,18 +460,4 @@ class Population:
         # Mostrar la animación
         fig.show()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # </editor-fold>

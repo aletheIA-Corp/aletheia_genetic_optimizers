@@ -1,11 +1,9 @@
-from info_tools import InfoTools
 from typing import Callable, Dict
-from tournament_methods import *
-from bounds import BoundCreator
-from individuals import Individual
-from reproduction_methods import Reproduction
-from mutation_methods import Mutation
-from population_methods import Population
+from aletheia_genetic_optimizers.tournament_methods import *
+from aletheia_genetic_optimizers.individuals import Individual
+from aletheia_genetic_optimizers.reproduction_methods import Reproduction
+from aletheia_genetic_optimizers.mutation_methods import Mutation
+from aletheia_genetic_optimizers.population_methods import Population
 
 
 class GenethicOptimizer:
@@ -14,13 +12,13 @@ class GenethicOptimizer:
                  num_generations: int,
                  num_individuals: int,
                  objective_function: Callable,
+                 problem_restrictions: Literal['bound_restricted', 'full_restricted'] = "bound_restricted",
                  problem_type: Literal["minimize", "maximize"] = "minimize",
                  tournament_method: Literal["ea_simple"] = "ea_simple",
                  podium_size: int = 3,
-                 reproduction_variability: float = 0.2,
                  mutate_probability: float = 0.25,
-                 mutation_center_mean: float = 0.0,
-                 mutation_size: float = 0.5,
+                 mutate_gen_probability: float = 0.2,
+                 mutation_policy: Literal['soft', 'normal', 'hard'] = 'medium',
                  verbose: bool = True
                  ):
         """
@@ -30,33 +28,27 @@ class GenethicOptimizer:
         :param num_generations: Numero de generaciones que se van a ejecutar
         :param num_individuals: Numero de Individuos iniciales que se van a generar
         :param objective_function: Función objetivo que se va a emplear para puntuar a cada individuo (debe retornar un float)
+        :param problem_restrictions: ['bound_restricted', 'full_restricted'] Restricciones que se van a aplicar a la hora de crear individuos, reprocirlos y mutarlos
         :param problem_type: [minimize, maximize] Seleccionar si se quiere minimizar o maximizar el resultado de la función objetivo. Por ejemplo si usamos un MAE es minimizar,
          un Accuracy sería maximizar.
         :param tournament_method: [easimple, .....] Elegir el tipo de torneo para seleccionar los individuos que se van a reproducir.
         :param podium_size: Cantidad de individuos de la muestra que van a competir para elegir al mejor. Por ejemplo, si el valor es 3, se escogen iterativamente 3 individuos
         al azar y se selecciona al mejor. Este proceso finaliza cuando ya no quedan más individuos y todos han sido seleccionados o deshechados.
-        :param reproduction_variability: También conocido como Alpha. α∈[0,1]. Directamente proporcional a la potencial variablidad entre hijos y padres. Ej. Si Alpha=0, los genes
-        de los hijos solo van a poder mutar en una interpolación entre los valores de los padres, cumpliendo la siguiente ecuación: λ∈[−α,1+α], para este caso λ∈[0,1]. Si Alpha=0.5
-        λ∈[−0.5,1.5]. Esto se calculará posteriormente en una magnitud proporcional a los valores de los genes de los padres.
         :param mutate_probability:Tambien conocido como indpb ∈[0, 1]. Probabilidad de mutar que tiene cada gen. Una probabilidad de 0, implica que nunca hay mutación,
         una probabilidad de 1 implica que siempre hay mutacion.
-        :param mutation_center_mean: μ donde μ∈R. Sesgo que aplicamos a la mutación para que el gen aumente o disminuya su valor. Cuando es 0, existe la misma probabilidad de
-        mutar positiva y negativamente. Cuando > 0, aumenta proporcionalmente la probabilidad de mutar positivamente y viceversa. v=v0+N(μ,σ)
-        :param mutation_size σ donde σ>0. Desviación estándar de la mutación, Si sigma es muy pequeño (ej. 0.01), las mutaciones serán mínimas, casi insignificantes.
-        Si sigma es muy grande (ej. 10 o 100), las mutaciones pueden ser demasiado bruscas, afectando drásticamente la solución.
-        - Mutaciones pequeñas, estables 0.1 - 0.5
-        - Balance entre estabilidad y exploración 0.5 - 1.0
-        - Exploración agresiva 1.5 - 3.0
         """
         # -- Almaceno propiedades
         self.bounds_dict: Dict = bounds_dict
         self.num_generations: int = num_generations
         self.num_individuals: int = num_individuals
         self.objective_function: Callable = objective_function
+        self.problem_restrictions: Literal['bound_restricted', 'full_restricted'] = problem_restrictions
         self.problem_type: str = problem_type
         self.tournament_method: str = tournament_method
         self.podium_size: int = podium_size
         self.mutate_probability: float = mutate_probability
+        self.mutate_gen_probability: float = mutate_gen_probability
+        self.mutation_policy: Literal['soft', 'normal', 'hard'] = mutation_policy
         self.verbose: bool = verbose
 
         # -- instancio info tools para los prints
@@ -78,7 +70,7 @@ class GenethicOptimizer:
         self.validate_input_parameters()
 
         # -- Creamos el objeto poblacion y la poblacion inicial
-        self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals)
+        self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals, self.problem_restrictions)
 
         # -- Creamos las listas de individuos que vamos a ir usando
         self.POPULATION.create_population()
@@ -97,10 +89,10 @@ class GenethicOptimizer:
             winners_list: List[Individual] = self.GTM.run_tournament(self.POPULATION.populuation_dict[gen - 1])
 
             # -- Creamos los hijos y los agregamos a la lista de individuos
-            children_list: List[Individual] = Reproduction(winners_list, self.num_individuals, False).run_reproduction()
+            children_list: List[Individual] = Reproduction(winners_list, self.num_individuals, self.problem_restrictions, self.problem_type,False).run_reproduction()
 
             # -- Mutamos los individuos
-            children_list = Mutation(children_list, self.mutate_probability).run_mutation()
+            children_list = Mutation(children_list, self.mutate_probability, self.mutate_gen_probability, self.mutation_policy, self.problem_restrictions).run_mutation()
 
             # -- Agregamos los individuos al diccionario de poblacion en su generacion correspondiente
             self.POPULATION.add_generation_population(children_list, gen)
@@ -112,6 +104,26 @@ class GenethicOptimizer:
 
             if self.verbose:
                 self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
+
+                best = None
+                for gen, ind_list in self.POPULATION.populuation_dict.items():
+                    best_gen_ind = sorted(self.POPULATION.populuation_dict[gen], key=lambda ind: ind.individual_fitness, reverse=self.problem_type == 'maximize')[0]
+                    self.IT.info_print(f"Mejor ind gen: {gen}: {best_gen_ind.get_individual_values()} - Fitness: {best_gen_ind.individual_fitness}")
+
+                    if self.problem_type == "maximize":
+                        if best is None:
+                            best = best_gen_ind
+                        else:
+                            if best.individual_fitness < best_gen_ind.individual_fitness:
+                                best = best_gen_ind
+                    else:
+                        if best is None:
+                            best = best_gen_ind
+                        else:
+                            if best.individual_fitness > best_gen_ind.individual_fitness:
+                                best = best_gen_ind
+
+                self.IT.info_print(f"Mejor ind TOTAL: {gen}: {best.get_individual_values()} - Fitness: {best.individual_fitness}")
 
     def validate_input_parameters(self) -> bool:
         """
@@ -180,4 +192,3 @@ class GenethicOptimizer:
 
     def plot_evolution(self) -> None:
         self.POPULATION.plot_evolution()
-

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from individuals import Individual
+from aletheia_genetic_optimizers.individuals import Individual
 from typing import List, Literal
 import random
 from info_tools import InfoTools
