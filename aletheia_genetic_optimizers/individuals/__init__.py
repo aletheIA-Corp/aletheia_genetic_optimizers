@@ -207,4 +207,7 @@ class Individual:
             self._individual_values[key] = new_value
         self.malformation = self.exists_malformation()
 
+    def get_child_values(self):
+        return self.child_values
+
     # </editor-fold>

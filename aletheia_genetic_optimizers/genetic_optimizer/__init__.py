@@ -4,6 +4,9 @@ from aletheia_genetic_optimizers.individuals import Individual
 from aletheia_genetic_optimizers.reproduction_methods import Reproduction
 from aletheia_genetic_optimizers.mutation_methods import Mutation
 from aletheia_genetic_optimizers.population_methods import Population
+from aletheia_genetic_optimizers.variability_explossion_methods import CrazyVariabilityExplossion
+import pandas as pd
+import numpy as np
 
 
 class GenethicOptimizer:
@@ -18,12 +21,15 @@ class GenethicOptimizer:
                  podium_size: int = 3,
                  mutate_probability: float = 0.25,
                  mutate_gen_probability: float = 0.2,
-                 mutation_policy: Literal['soft', 'normal', 'hard'] = 'medium',
-                 verbose: bool = True
+                 mutation_policy: Literal['soft', 'normal', 'hard'] = 'normal',
+                 verbose: bool = True,
+                 early_stopping_generations: Literal['gradient'] | int = 'gradient',
+                 variability_explossion_mode: Literal['crazy'] = 'crazy'
                  ):
         """
         Clase-Objeto padre para crear un algoritmo genético cuántico basado en QAOA y generacion de aleatoriedad cuántica
         en lo respectivo a mutaciones y cruces reproductivos.
+
         :param bounds_dict: Diccionario en el que se definen los parámetros a optimizar y sus valores, ej. '{learning_rate: (0.0001, 0.1)}'
         :param num_generations: Numero de generaciones que se van a ejecutar
         :param num_individuals: Numero de Individuos iniciales que se van a generar
@@ -36,6 +42,9 @@ class GenethicOptimizer:
         al azar y se selecciona al mejor. Este proceso finaliza cuando ya no quedan más individuos y todos han sido seleccionados o deshechados.
         :param mutate_probability:Tambien conocido como indpb ∈[0, 1]. Probabilidad de mutar que tiene cada gen. Una probabilidad de 0, implica que nunca hay mutación,
         una probabilidad de 1 implica que siempre hay mutacion.
+        :param early_stopping_generations: Cantidad de generaciones que van a transcurrir para que en caso de repetirse la moda del fitness, se active el modo variability_explosion
+        :param variability_explossion_mode: Modo de explosion de variabilidad, es decir, que se va a hacer para intentar salir de un minimo local establecido
+
         """
         # -- Almaceno propiedades
         self.bounds_dict: Dict = bounds_dict
@@ -50,12 +59,18 @@ class GenethicOptimizer:
         self.mutate_gen_probability: float = mutate_gen_probability
         self.mutation_policy: Literal['soft', 'normal', 'hard'] = mutation_policy
         self.verbose: bool = verbose
+        self.early_stopping_generations: int = early_stopping_generations if isinstance(early_stopping_generations, int) else max(int(self.num_generations * 0.05), 3)
+        self.early_stopping_generations_executed: bool = False
+        self.early_stopping_generations_executed_counter: int = 0
 
         # -- instancio info tools para los prints
         self.IT: InfoTools = InfoTools()
 
         # -- Instancio la clase GenethicTournamentMethods en GTM y almaceno el torneo
         self.GTM: Tournament = self.get_tournament_method(self.verbose)
+
+        # -- Instancio la clase de variability_explossion
+        self.VEM: CrazyVariabilityExplossion = CrazyVariabilityExplossion(self.early_stopping_generations, self.problem_type, self.verbose)
 
         # -- Almaceno cualquiera de los bounds_dict en self.bounds_dict y modifico self.predefined_bounds_problem
         if self.bounds_dict is None:
@@ -76,54 +91,87 @@ class GenethicOptimizer:
         self.POPULATION.create_population()
 
         # -- Pasamos a cada individuo de la generacion 0 por la funcion de coste
+        if self.verbose:
+            self.IT.header_print(f"Generacion 0")
+            self.IT.sub_intro_rint("Ejecutando funcion objetivo en los individuos.....")
         for individual in self.POPULATION.populuation_dict[0]:
             individual.individual_fitness = self.objective_function(individual)
 
         if self.verbose:
+            self.IT.info_print("Funcion objetivo ejecutada correctamente")
             self.print_generation_info(self.POPULATION.populuation_dict[0], 0)
 
         # -- Entramos a la parte genetica iterando por generaciones
         for gen in range(1, self.num_generations):
 
+            if self.verbose:
+                self.IT.header_print(f"Generacion {gen}")
+
             # -- Ejecutamos el torneo para obtener los padres ganadores en base a los individuos de la generacion anterior
             winners_list: List[Individual] = self.GTM.run_tournament(self.POPULATION.populuation_dict[gen - 1])
 
             # -- Creamos los hijos y los agregamos a la lista de individuos
-            children_list: List[Individual] = Reproduction(winners_list, self.num_individuals, self.problem_restrictions, self.problem_type,False).run_reproduction()
+            children_list: List[Individual] = Reproduction(winners_list, self.num_individuals, self.problem_restrictions, self.problem_type, False).run_reproduction()
+
+            # -- Evaluamos si el modelo ha quedado en un minimo local, en caso afirmativo le damos una explosion de variabilidad
+            m_proba, m_gen_proba, m_policy, early_stopping_generations_executed = self.VEM.evaluate_early_stopping(self.POPULATION.generations_fitness_statistics_df)
+
+            if m_proba is not None:  # En caso de que una sea None, es que todos son None
+                self.mutate_probability = m_proba
+                self.mutate_gen_probability = m_gen_proba
+                self.mutation_policy = m_policy
+                self.early_stopping_generations_executed = early_stopping_generations_executed
+
+            if self.early_stopping_generations_executed and self.mutation_policy == "hard":
+                self.IT.header_print("CRAZY MODE ON", "light_red")
 
             # -- Mutamos los individuos
-            children_list = Mutation(children_list, self.mutate_probability, self.mutate_gen_probability, self.mutation_policy, self.problem_restrictions).run_mutation()
+            children_list = Mutation(children_list, self.mutate_probability, self.mutate_gen_probability, self.mutation_policy, self.problem_restrictions, self.num_generations).run_mutation()
 
-            # -- Agregamos los individuos al diccionario de poblacion en su generacion correspondiente
+            # -- Agregamos los individuos al diccionario de poblacion en su generacion correspondiente [NOTA: Aquí se crean las Instancias de individuals de esta generacion]
             self.POPULATION.add_generation_population(children_list, gen)
 
-            # -- Pasamos a cada individuo por la funcion de coste
+            # -- Pasamos a cada individuo de la gen=gen por la funcion de coste
+            if self.verbose:
+                self.IT.sub_intro_rint("Ejecutando funcion objetivo en los individuos.....")
             for individual in self.POPULATION.populuation_dict[gen]:
                 if not individual.malformation:
                     individual.individual_fitness = self.objective_function(individual)
 
             if self.verbose:
+                self.IT.info_print("Funcion objetivo ejecutada correctamente")
                 self.print_generation_info(self.POPULATION.populuation_dict[gen], gen)
 
-                best = None
-                for gen, ind_list in self.POPULATION.populuation_dict.items():
-                    best_gen_ind = sorted(self.POPULATION.populuation_dict[gen], key=lambda ind: ind.individual_fitness, reverse=self.problem_type == 'maximize')[0]
-                    self.IT.info_print(f"Mejor ind gen: {gen}: {best_gen_ind.get_individual_values()} - Fitness: {best_gen_ind.individual_fitness}")
+                self.IT.sub_intro_rint("Mejores individuos por generacion y mejor individuo")
+
+                best_fitness = None
+                for gen_n, ind_list in self.POPULATION.populuation_dict.items():
+                    best_gen_ind = sorted(
+                        [ind for ind in self.POPULATION.populuation_dict[gen_n] if ind.individual_fitness is not None],
+                        key=lambda ind: ind.individual_fitness,
+                        reverse=self.problem_type == 'maximize'
+                    )[0]
+
+                    self.IT.info_print(f"Mejor ind gen: {gen_n}: {best_gen_ind.get_individual_values()} - Fitness: {best_gen_ind.individual_fitness}")
 
                     if self.problem_type == "maximize":
-                        if best is None:
-                            best = best_gen_ind
+                        if best_fitness is None:
+                            best_fitness = best_gen_ind.individual_fitness
                         else:
-                            if best.individual_fitness < best_gen_ind.individual_fitness:
-                                best = best_gen_ind
+                            if best_fitness < best_gen_ind.individual_fitness:
+                                best_fitness = best_gen_ind.individual_fitness
                     else:
-                        if best is None:
-                            best = best_gen_ind
+                        if best_fitness is None:
+                            best_fitness = best_gen_ind.individual_fitness
                         else:
-                            if best.individual_fitness > best_gen_ind.individual_fitness:
-                                best = best_gen_ind
+                            if best_fitness > best_gen_ind.individual_fitness:
+                                best_fitness = best_gen_ind.individual_fitness
 
-                self.IT.info_print(f"Mejor ind TOTAL: {gen}: {best.get_individual_values()} - Fitness: {best.individual_fitness}")
+                self.IT.info_print(f"Mejor ind TOTAL: Fitness: {best_fitness}", "light_magenta")
+
+            # -- Evaluamos si despues de la explosion de variabilidad, han transcurrido las generaciones de margen. En caso afirmativo, salimos del bucle
+            if self.VEM.stop_genetic_iterations(self.POPULATION.generations_fitness_statistics_df):
+                break
 
     def validate_input_parameters(self) -> bool:
         """
@@ -175,11 +223,10 @@ class GenethicOptimizer:
                 return EaSimple(self.podium_size, self.problem_type, verbose)
 
     def print_generation_info(self, individual_generation_list: List[Individual], generation: int):
-        self.IT.intro_print(f"Individuos generacion {generation}")
         self.IT.sub_intro_rint("Información de los individuos y los fitness")
         for i, ind in enumerate([z for z in individual_generation_list if z.generation == generation]):
             pad_number = lambda num: str(num).zfill(len(str(self.num_individuals)))
-            self.IT.info_print(f"Individuo {pad_number(i + 1)}: {ind.get_individual_values()} - Generación: {ind.generation} - [Fitness]: {ind.individual_fitness}")
+            self.IT.info_print(f"Individuo {pad_number(i)}: {ind.get_individual_values()} - Generación: {ind.generation} - [Fitness]: {ind.individual_fitness}")
 
         self.IT.sub_intro_rint(f"Información de la evolución de las distribuciones en cada generación")
         self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)

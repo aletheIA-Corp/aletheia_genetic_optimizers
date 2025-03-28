@@ -1,3 +1,5 @@
+import datetime
+
 from aletheia_genetic_optimizers import Individual
 from aletheia_genetic_optimizers import BoundCreator
 from aletheia_genetic_optimizers import GenethicOptimizer
@@ -5,64 +7,81 @@ import numpy as np
 
 
 # -- Definimos la función objetivo
-
-
-
 def example_1_bounds_no_predefinidos():
-    def objective_function(individual: Individual) -> float:
-        import numpy as np
-        from sklearn.datasets import load_diabetes
-        from sklearn.model_selection import train_test_split
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.metrics import accuracy_score
-        from sklearn.preprocessing import StandardScaler
+    import numpy as np
+    import datetime
+    from sklearn.datasets import load_diabetes
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import accuracy_score
+    from sklearn.preprocessing import StandardScaler
 
-        # -- Cargamos el dataset de diabetes
+    def objective_function(individual):
+        # Load diabetes dataset
         data = load_diabetes()
-        individual_dict: dict = individual.get_individual_values()
+        individual_dict = individual.get_individual_values()
         X, y = data.data, data.target
 
-        # -- Convertimos la variable objetivo en un problema de clasificación binaria (diabetes alta o baja)
-        y = (y > np.median(y)).astype(int)  # 1 si es mayor a la mediana, 0 si es menor
+        # Convert target variable to binary classification
+        y = (y > np.median(y)).astype(int)  # 1 if above median, 0 if below
 
-        # -- Dividimos en conjunto de entrenamiento y prueba
+        # Split into training and test sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        # -- Normalizamos los datos
+        # Measure execution time
+        start_time = datetime.datetime.now()
+
+        # Normalize data
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # Función objetivo para entrenar el modelo y calcular la precisión
         def train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test):
-            model = RandomForestClassifier(n_estimators=int(individual_dict["n_estimators"]),
-                                           max_depth=individual_dict["max_depth"],
-                                           random_state=42)
-
-            # -- Entrenamos el modelo, predecimos y calculamos el accuracy
+            model = RandomForestClassifier(
+                n_estimators=int(individual_dict["n_estimators"]),
+                max_depth=individual_dict["max_depth"],
+                random_state=42
+            )
             model.fit(X_train_scaled, y_train)
             y_pred = model.predict(X_test_scaled)
             return accuracy_score(y_test, y_pred)
 
-        # -- Entrenamos y evaluamos el modelo
+        # Calculate accuracy
         accuracy = train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test)
 
-        return accuracy
+        # Calculate execution time
+        elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+
+        # Penalization parameters
+        reference_time = 0.5  # Reference time for penalization
+        max_penalty_ratio = 0.01  # Maximum penalty (1% of accuracy)
+
+        # Calculate continuous time-based penalty
+        # The penalty increases smoothly as time increases
+        time_penalty = max_penalty_ratio * accuracy * (elapsed_time / reference_time)
+        time_penalty = min(time_penalty, max_penalty_ratio * accuracy)
+
+        penalized_accuracy = accuracy - time_penalty
+
+        # print(f"[Original]: {accuracy}   ---   [Penalized]: {penalized_accuracy}")
+
+        return penalized_accuracy
 
     # -- Creamos el diccionario de bounds
     bounds = BoundCreator()
-    bounds.add_interval_bound("n_estimators", 100, 1000, 50, 1500, "int")
+    bounds.add_interval_bound("n_estimators", 50, 1000, 10, 1500, "int")
     bounds.add_predefined_bound("max_depth", (1, 2, 3, 4, 5, 6, 7, 8, 9), "int")
 
     return GenethicOptimizer(bounds.get_bound(),
-                             10,
-                             10,
+                             30,
+                             30,
                              objective_function,
                              "bound_restricted",
                              "maximize",
                              "ea_simple",
                              3,
-                             0.25,
+                             0.3,
+                             0.3,
                              )
 
 def example_2_tsp():
@@ -160,7 +179,7 @@ def example_2_tsp():
                              )
 
 
-genetic_optimizer_object: GenethicOptimizer = example_2_tsp()
+genetic_optimizer_object: GenethicOptimizer = example_1_bounds_no_predefinidos()
 genetic_optimizer_object.plot_generation_stats()
-genetic_optimizer_object.plot_evolution_animated()
+# genetic_optimizer_object.plot_evolution_animated()
 genetic_optimizer_object.plot_evolution()

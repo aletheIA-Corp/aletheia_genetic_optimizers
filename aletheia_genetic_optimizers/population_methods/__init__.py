@@ -7,6 +7,7 @@ from info_tools import InfoTools
 import scipy.stats as stats
 import numpy as np
 
+
 # TODO: Crear un metodo para ir viendo la distribucion de los parametros a optimizar
 class Population:
     def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int, problem_restrictions: Literal['bound_restricted', 'full_restricted']):

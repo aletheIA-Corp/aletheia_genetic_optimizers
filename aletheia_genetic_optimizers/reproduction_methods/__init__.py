@@ -28,6 +28,9 @@ class Reproduction:
         num_to_select = max(1, int(len(self.winners_list) * 0.15))
         self.children_list += sorted(self.winners_list, key=lambda ind: ind.individual_fitness, reverse=self.problem_type == "maximize")[:num_to_select]
 
+        # -- Despues, creo individuos idénticos a esos padres porque no puedo modificar su generación sin dejar descalza la generacion 0
+        self.children_list = [Individual(ind.bounds_dict, ind.get_child_values(), self.parents_generation + 1, self.problem_restrictions) for ind in self.children_list]
+
         match self.problem_restrictions:
             case "bound_restricted":
                 return self.bound_restricted_reproduction()
@@ -38,14 +41,19 @@ class Reproduction:
         # -- Obtengo el bounds dict fijo para que cada tipo de parametro tenga su propio cruce (rangos con cx_blend, fijos con cx_uniform)
         bounds_dict = self.winners_list[0].bounds_dict
 
+        # -- Pongo una cantidad fija de iteraciones de seguridad
+        max_attempts: int = 10
+        attempts: int = 0
+
         # -- Primero, iteramos hasta que la children_list tenga number_of_children individuos
         while len(self.children_list) < self.number_of_children:
+
+            if attempts > max_attempts:
+                break
+
             for individual in self.winners_list:
 
-                if len(self.children_list) == self.number_of_children:
-                    break
-                elif len(self.children_list) > self.number_of_children:
-                    self.children_list.pop(-1)
+                if len(self.children_list) >= self.number_of_children:
                     break
 
                 # Seleccionamos otro individuo al azar con el que se va a cruzar
@@ -85,6 +93,8 @@ class Reproduction:
                     if not is_duplicate and not child_individual_1.malformation:
                         self.children_list.append(ind)
 
+            attempts += 1
+
         return self.children_list
 
     def full_restricted_reproduction(self):
@@ -95,10 +105,7 @@ class Reproduction:
         while len(self.children_list) < self.number_of_children:
             for individual in self.winners_list:
 
-                if len(self.children_list) == self.number_of_children:
-                    break
-                elif len(self.children_list) > self.number_of_children:
-                    self.children_list.pop(-1)
+                if len(self.children_list) >= self.number_of_children:
                     break
 
                 # Seleccionamos otro individuo al azar con el que se va a cruzar
