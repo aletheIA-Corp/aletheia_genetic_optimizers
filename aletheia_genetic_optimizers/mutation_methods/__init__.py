@@ -69,28 +69,6 @@ class Mutation:
 
     # <editor-fold desc="Metodos de mutacion de genes    -------------------------------------------------------------------------------------------------------------------------">
 
-    def mutation_bit_flip_old(self, individual: Individual, parameter: str):
-        """
-        Metodo para mutar valores discreto
-
-
-        :param individual: Indivudo que se quiere mutar alguno de sus genes
-        :param parameter: Parámetro que se quiere modificar del indiviudo
-        :return: Parámetro mutado.
-        """
-
-        # TODO: Implementar potencia de la mutacion con self.mutation_policy
-        match self.mutation_policy:
-            case 'soft':
-                pass  # En este caso el rango de valores posibles debe oscilar entre los n elementos mas cercanos, por ejemplo, si el valor es 5 en un rango de 0:50, que sean del 0 al 10
-            case 'normal':
-                pass  # En este caso el rango de valores posibles debe oscilar entre los n elementos mas cercanos, por ejemplo, si el valor es 25 en un rango de 0:50, que sean del 10 al 40
-            case 'hard':
-                possible_values = [z for z in self.bounds_dict[parameter]["malformation_limits"] if z != individual.get_individual_values()[parameter]]  # En este caso el rango de valores posibles es totalmente aleatorio
-
-        possible_values = [z for z in self.bounds_dict[parameter]["malformation_limits"] if z != individual.get_individual_values()[parameter]]
-        return float(np.random.choice(possible_values)) if self.bounds_dict[parameter]["type"] == "float" else int(np.random.choice(possible_values))
-
     def mutation_bit_flip(self, individual: Individual, parameter: str):
         total_generations = self.num_generations
         current_generation: int = individual.generation

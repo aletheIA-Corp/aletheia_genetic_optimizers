@@ -5,8 +5,6 @@ from aletheia_genetic_optimizers.reproduction_methods import Reproduction
 from aletheia_genetic_optimizers.mutation_methods import Mutation
 from aletheia_genetic_optimizers.population_methods import Population
 from aletheia_genetic_optimizers.variability_explossion_methods import CrazyVariabilityExplossion
-import pandas as pd
-import numpy as np
 
 
 class GenethicOptimizer:
@@ -62,7 +60,7 @@ class GenethicOptimizer:
         self.mutate_gen_probability: float = mutate_gen_probability
         self.mutation_policy: Literal['soft', 'normal', 'hard'] = mutation_policy
         self.verbose: bool = verbose
-        self.early_stopping_generations: int = early_stopping_generations if isinstance(early_stopping_generations, int) else max(int(self.num_generations * 0.05), 3)
+        self.early_stopping_generations: int = early_stopping_generations if isinstance(early_stopping_generations, int) else max(int(self.num_generations * 0.15), 3)
         self.early_stopping_generations_executed: bool = False
         self.early_stopping_generations_executed_counter: int = 0
         self.variability_round_decimals: int = variability_round_decimals
