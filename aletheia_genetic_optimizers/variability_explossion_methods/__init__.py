@@ -6,7 +6,7 @@ from info_tools import InfoTools
 
 
 class VariabilityExplossion(ABC):
-    def __init__(self, early_stopping_generations: int, problem_type: Literal['maximize', 'minimize'], verbose: bool = False):
+    def __init__(self, early_stopping_generations: int, problem_type: Literal['maximize', 'minimize'], round_decimals: int = 3, verbose: bool = False):
 
         # -- Obtengo las generaciones que voy a esperar para que si se repite la moda, arrancar la explosion de variabilidad
         self.early_stopping_generations: int = early_stopping_generations
@@ -14,6 +14,7 @@ class VariabilityExplossion(ABC):
         # -- almaceno el tipo de problema e instancio InfoTools
         self.problem_type: Literal['maximize', 'minimize'] = problem_type
         self.IT: InfoTools = InfoTools()
+        self.round_decimals: int = round_decimals
         self.verbose: int = verbose
 
         # -- Inicializo propiedades de control de flujo
@@ -44,10 +45,10 @@ class VariabilityExplossion(ABC):
 
 
 class CrazyVariabilityExplossion(VariabilityExplossion):
-    def __init__(self, early_stopping_generations: int, problem_type: Literal['maximize', 'minimize'], verbose: bool = False):
+    def __init__(self, early_stopping_generations: int, problem_type: Literal['maximize', 'minimize'], round_decimals: int = 3, verbose: bool = False):
 
         # -- Obtengo las generaciones que voy a esperar para que si se repite la moda, arrancar la explosion de variabilidad
-        super().__init__(early_stopping_generations, problem_type, verbose)
+        super().__init__(early_stopping_generations, problem_type, round_decimals, verbose)
 
     def evaluate_early_stopping(self, generations_fitness_statistics_df: pd.DataFrame | None) -> tuple:
         """
@@ -57,11 +58,11 @@ class CrazyVariabilityExplossion(VariabilityExplossion):
 
         # -- Si en las últimas early_stopping_generations el max es igual, aplicamos la explosión de variabilidad
         if generations_fitness_statistics_df is not None:
-            df: pd.DataFrame = generations_fitness_statistics_df.tail(self.early_stopping_generations)
-
-            if df.shape[0] >= self.early_stopping_generations * 2:
-                mode_values = df["mode"].values  # Extraer los valores como array
-                if np.all(np.isclose(mode_values, mode_values[0], atol=1e-4)):  # Comprobar igualdad con precisión de 6 decimales
+            df: pd.DataFrame = generations_fitness_statistics_df
+            df_tail = df.tail(self.early_stopping_generations)
+            if df.shape[0] >= int(self.early_stopping_generations * 2):
+                mode_values = df_tail["mode"].values  # Extraer los valores como array
+                if np.all(mode_values == mode_values[0]):
                     return self.execute_variability_explossion()
 
         # -- Si ya se ha ejecutado la explosion de variabilidad, se vuelve a ejecutar en cada iteracion
@@ -131,7 +132,8 @@ class CrazyVariabilityExplossion(VariabilityExplossion):
 
     def print_variability_status(self):
         self.IT.sub_intro_rint(f"Resumen de CrazyVariabilityExplossion")
-        self.IT.info_print(f"CrazyVariabilityExplossion Activated: {self.early_stopping_generations_executed}")
+        self.IT.info_print(f"CrazyVariabilityExplossion Activated: {self.early_stopping_generations_executed}",
+                           "light_red" if self.early_stopping_generations_executed else "light_green")
         if self.early_stopping_generations_executed:
             self.IT.info_print(f"Generaciones que lleva activo el CrazyVariabilityExplossion: {self.total_early_stopping_generations_executed_counter}")
             self.IT.info_print(f"Generaciones desde ultima mejora: {self.early_stopping_generations_executed_counter}")

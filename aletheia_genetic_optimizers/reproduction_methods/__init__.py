@@ -42,7 +42,7 @@ class Reproduction:
         bounds_dict = self.winners_list[0].bounds_dict
 
         # -- Pongo una cantidad fija de iteraciones de seguridad
-        max_attempts: int = 10
+        max_attempts: int = 4
         attempts: int = 0
 
         # -- Primero, iteramos hasta que la children_list tenga number_of_children individuos

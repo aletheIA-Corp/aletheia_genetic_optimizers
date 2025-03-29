@@ -24,7 +24,8 @@ class GenethicOptimizer:
                  mutation_policy: Literal['soft', 'normal', 'hard'] = 'normal',
                  verbose: bool = True,
                  early_stopping_generations: Literal['gradient'] | int = 'gradient',
-                 variability_explossion_mode: Literal['crazy'] = 'crazy'
+                 variability_explossion_mode: Literal['crazy'] = 'crazy',
+                 variability_round_decimals: int = 3,
                  ):
         """
         Clase-Objeto padre para crear un algoritmo genético cuántico basado en QAOA y generacion de aleatoriedad cuántica
@@ -44,6 +45,8 @@ class GenethicOptimizer:
         una probabilidad de 1 implica que siempre hay mutacion.
         :param early_stopping_generations: Cantidad de generaciones que van a transcurrir para que en caso de repetirse la moda del fitness, se active el modo variability_explosion
         :param variability_explossion_mode: Modo de explosion de variabilidad, es decir, que se va a hacer para intentar salir de un minimo local establecido
+        :param variability_round_decimals: Decimales a los que redondear las estadisticas de cálculo de moda necesarias para la explosion de variabilidad. Por ejemplo,
+        en un caso de uso que busque accuracy, podría ser con 2 o 3 decimales. para casos de uso que contengan números muy bajos, habría que agregar más.
 
         """
         # -- Almaceno propiedades
@@ -62,15 +65,22 @@ class GenethicOptimizer:
         self.early_stopping_generations: int = early_stopping_generations if isinstance(early_stopping_generations, int) else max(int(self.num_generations * 0.05), 3)
         self.early_stopping_generations_executed: bool = False
         self.early_stopping_generations_executed_counter: int = 0
+        self.variability_round_decimals: int = variability_round_decimals
 
-        # -- instancio info tools para los prints
+        # -- instancio info tools para los prints y defino variability_explosion_starts_in_generation
         self.IT: InfoTools = InfoTools()
+        self.variability_explosion_starts_in_generation: int | None = None
 
         # -- Instancio la clase GenethicTournamentMethods en GTM y almaceno el torneo
         self.GTM: Tournament = self.get_tournament_method(self.verbose)
 
         # -- Instancio la clase de variability_explossion
-        self.VEM: CrazyVariabilityExplossion = CrazyVariabilityExplossion(self.early_stopping_generations, self.problem_type, self.verbose)
+        match variability_explossion_mode:
+            case 'crazy':
+                self.VEM: CrazyVariabilityExplossion = CrazyVariabilityExplossion(self.early_stopping_generations, self.problem_type, self.variability_round_decimals, self.verbose)
+            case _:
+                # -- De momento solo está implementado el crazy
+                self.VEM: CrazyVariabilityExplossion = CrazyVariabilityExplossion(self.early_stopping_generations, self.problem_type, self.variability_round_decimals, self.verbose)
 
         # -- Almaceno cualquiera de los bounds_dict en self.bounds_dict y modifico self.predefined_bounds_problem
         if self.bounds_dict is None:
@@ -85,7 +95,7 @@ class GenethicOptimizer:
         self.validate_input_parameters()
 
         # -- Creamos el objeto poblacion y la poblacion inicial
-        self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals, self.problem_restrictions)
+        self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals, self.problem_restrictions, self.variability_round_decimals)
 
         # -- Creamos las listas de individuos que vamos a ir usando
         self.POPULATION.create_population()
@@ -124,6 +134,7 @@ class GenethicOptimizer:
 
             if self.early_stopping_generations_executed and self.mutation_policy == "hard":
                 self.IT.header_print("CRAZY MODE ON", "light_red")
+                self.variability_explosion_starts_in_generation = gen
 
             # -- Mutamos los individuos
             children_list = Mutation(children_list, self.mutate_probability, self.mutate_gen_probability, self.mutation_policy, self.problem_restrictions, self.num_generations).run_mutation()
@@ -232,7 +243,7 @@ class GenethicOptimizer:
         self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)
 
     def plot_generation_stats(self) -> None:
-        self.POPULATION.plot_generation_stats()
+        self.POPULATION.plot_generation_stats(self.variability_explosion_starts_in_generation)
 
     def plot_evolution_animated(self) -> None:
         self.POPULATION.plot_evolution_animated()

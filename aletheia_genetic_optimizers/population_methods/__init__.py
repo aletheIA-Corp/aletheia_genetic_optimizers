@@ -10,13 +10,15 @@ import numpy as np
 
 # TODO: Crear un metodo para ir viendo la distribucion de los parametros a optimizar
 class Population:
-    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int, problem_restrictions: Literal['bound_restricted', 'full_restricted']):
+    def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int,
+                 problem_restrictions: Literal['bound_restricted', 'full_restricted'], round_decimals: int = 3):
         self.IT: InfoTools = InfoTools
         self.bounds_dict: Dict[str, Tuple[Union[int, float]]] = bounds_dict
         self.num_individuals: int = num_individuals
         self.problem_restrictions: Literal['bound_restricted', 'full_restricted'] = problem_restrictions
         self.populuation_dict: Dict[str, List[Individual]] = {0: []}
         self.generations_fitness_statistics_df: pd.DataFrame | None = None
+        self.round_decimals: int = round_decimals
 
     def create_population(self) -> None:
         """
@@ -63,7 +65,7 @@ class Population:
             "q2": [np.percentile(values, 50)],  # Mediana
             "q3": [np.percentile(values, 75)],
             "iqr": [stats.iqr(values)],
-            "mode": [stats.mode(values, keepdims=True)[0][0]]
+            "mode": [stats.mode([round(v, self.round_decimals) for v in values], keepdims=True)[0][0]]
         }
 
         if self.generations_fitness_statistics_df is None:
@@ -74,7 +76,7 @@ class Population:
         return self.generations_fitness_statistics_df
 
     # <editor-fold desc="Metodos de graficación    -------------------------------------------------------------------------------------------------------------------------------">
-    def plot_generation_stats(self):
+    """def plot_generation_stats(self, variability_explosion_starts_in_generation: int | None):
         fig = go.Figure()
 
         # Agregar líneas al gráfico
@@ -135,6 +137,85 @@ class Population:
                 xanchor='left'
             ),
             margin=dict(l=50, r=200, t=50, b=50)  # Espacio extra a la derecha para la leyenda
+        )
+
+        fig.show()"""
+
+    def plot_generation_stats(self, variability_explosion_starts_in_generation: int | None):
+        fig = go.Figure()
+
+        # Agregar líneas al gráfico
+        show_stats = ['mean', 'median', 'mode', 'min', 'max', 'q1', 'q3']
+        colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692']
+
+        for stat, color in zip(show_stats, colors):
+            fig.add_trace(go.Scatter(
+                x=self.generations_fitness_statistics_df['generation'],
+                y=self.generations_fitness_statistics_df[stat],
+                mode='lines+markers',
+                name=stat.capitalize(),
+                line=dict(color=color, width=2, shape='spline'),  # Líneas más suaves
+                marker=dict(size=6, opacity=0.8)
+            ))
+
+        # Agregar línea vertical si el valor no es None
+        if variability_explosion_starts_in_generation is not None:
+            x_pos = variability_explosion_starts_in_generation - 0.2  # Desplazamiento a la izquierda
+
+            # Línea vertical
+            fig.add_shape(
+                type="line",
+                x0=x_pos, x1=x_pos,
+                y0=self.generations_fitness_statistics_df[show_stats].min().min(),
+                y1=self.generations_fitness_statistics_df[show_stats].max().max(),
+                line=dict(color="red", width=3, dash="dash"),
+            )
+
+            # Añadir un marcador invisible para la leyenda
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],  # No se mostrará en la gráfica, solo en la leyenda
+                mode='lines',
+                name="Variability Explosion Start",
+                line=dict(color="red", width=3, dash="dash")
+            ))
+
+        # Configuración del diseño
+        fig.update_layout(
+            title=dict(
+                text="Evolución de Estadísticas por Generación",
+                font=dict(size=22, family='Arial, sans-serif', color='#2C3E50'),
+                x=0.5, xanchor='center', pad=dict(b=20, t=20)
+            ),
+            plot_bgcolor='rgba(245,248,250,0.9)',
+            paper_bgcolor='white',
+            xaxis=dict(
+                title="Generación",
+                showgrid=True,
+                zeroline=False,
+                gridcolor='lightgrey',
+                zerolinecolor='lightgrey',
+                showline=True,
+                linewidth=2,
+                linecolor='#BDC3C7'
+            ),
+            yaxis=dict(
+                title="Valor",
+                showgrid=True,
+                zeroline=False,
+                gridcolor='lightgrey',
+                zerolinecolor='lightgrey',
+                showline=False,
+                linewidth=2,
+                linecolor='#BDC3C7'
+            ),
+            legend=dict(
+                title='Estadísticas',
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='#BDC3C7',
+                borderwidth=1,
+                x=1.05, xanchor='left'
+            ),
+            margin=dict(l=50, r=200, t=50, b=50)
         )
 
         fig.show()
