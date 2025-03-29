@@ -73,7 +73,7 @@ def example_1_bounds_no_predefinidos():
     bounds.add_predefined_bound("max_depth", (1, 2, 3, 4, 5, 6, 7, 8, 9), "int")
 
     return GenethicOptimizer(bounds.get_bound(),
-                             30,
+                             50,
                              30,
                              objective_function,
                              "bound_restricted",

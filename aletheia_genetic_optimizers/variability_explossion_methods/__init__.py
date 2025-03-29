@@ -99,13 +99,20 @@ class CrazyVariabilityExplossion(VariabilityExplossion):
         if self.early_stopping_generations_executed_counter >= self.early_stopping_generations:
             # Si no ha mejorado en las vueltas, True, sino reseteamos el contador para darle margen
             df: pd.DataFrame = generations_fitness_statistics_df
-            best_value = max(df["max"].values) if self.problem_type == "maximize" else min(df["max"].values)
+
+            # Definir el rango de filas a considerar para best_value
+            valid_range = df.iloc[:-self.early_stopping_generations_executed_counter]
+
+            # Calcular best_value excluyendo las últimas N filas
+            best_value = max(valid_range["max"].values) if self.problem_type == "maximize" else min(valid_range["max"].values)
+
+            # Calcular best_counter_value en las últimas N filas
             best_counter_value = max(df.tail(self.early_stopping_generations_executed_counter)["max"].values) if self.problem_type == "maximize" else (
                 min(df.tail(self.early_stopping_generations_executed_counter)["max"].values))
 
             if self.problem_type == "maximize":
                 if best_counter_value <= best_value:
-                    self.IT.info_print("El CRAZY MODE no ha conseguido mejorar el resultado. Detenemos el proceso de evolución", "light_yellow")
+                    self.IT.info_print("El CRAZY MODE no ha conseguido mejorar más el resultado. Detenemos el proceso de evolución", "light_yellow")
                     return True
                 else:
                     self.IT.info_print("El CRAZY MODE ha mejorado el mejor resultado. Le damos margen de generaciones", "light_blue")
@@ -113,7 +120,7 @@ class CrazyVariabilityExplossion(VariabilityExplossion):
                     return False
             else:
                 if best_counter_value >= best_value:
-                    self.IT.info_print("El CRAZY MODE no ha conseguido mejorar el resultado. Detenemos el proceso de evolución", "light_yellow")
+                    self.IT.info_print("El CRAZY MODE no ha conseguido mejorar más el resultado. Detenemos el proceso de evolución", "light_yellow")
                     return True
                 else:
                     self.IT.info_print("El CRAZY MODE ha mejorado el mejor resultado. Le damos margen de generaciones", "light_blue")
