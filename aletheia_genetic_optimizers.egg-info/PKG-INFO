@@ -1,3 +1,27 @@
+Metadata-Version: 2.4
+Name: aletheia_genetic_optimizers
+Version: 2.0.0
+Summary: Librería para soluciones de algoritmos genéticos de optimización
+Home-page: https://github.com/aletheIA-Corp/aletheia_genetic_optimizers
+Author: Aletheia_corp
+Author-email: dsarabiatorres@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: constants_and_tools==0.3.0
+Requires-Dist: plotly==6.0.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
 # AletheIA Genetic Optimizers (AGO)
 
 ## Equipo de desarrollo

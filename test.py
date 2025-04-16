@@ -1,71 +1,94 @@
-import datetime
-
-from aletheia_genetic_optimizers import Individual
 from aletheia_genetic_optimizers import BoundCreator
 from aletheia_genetic_optimizers import GenethicOptimizer
 import numpy as np
+import lightgbm as lgb
+import pandas as pd
+from sklearn.datasets import fetch_california_housing, fetch_openml, load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, r2_score, mean_absolute_error
+import datetime
+from typing import Literal
 
 
 # -- Definimos la función objetivo
 def example_1_bounds_no_predefinidos():
-    import numpy as np
-    import datetime
-    from sklearn.datasets import load_diabetes
-    from sklearn.model_selection import train_test_split
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import accuracy_score
-    from sklearn.preprocessing import StandardScaler
 
-    def objective_function(individual):
-        # Load diabetes dataset
-        data = load_diabetes()
+    def objective_function(individual, dataset_loader: Literal["fetch_california_housing", "glass", "breast_cancer"] = "breast_cancer", random_state=42):
+        # Cargar dataset
+        match dataset_loader:
+            case "fetch_california_housing":
+                data = fetch_california_housing()
+                problem_type = 'regression'
+                test_size = 0.2
+            case "breast_cancer":
+                data = load_breast_cancer()
+                problem_type = 'binary'
+                test_size = 0.7
+            case "glass":
+                data = fetch_openml(name="glass", version=1, as_frame=True)
+                problem_type = 'multiclass'
+                test_size = 0.2
+            case _:
+                data = fetch_california_housing()
+                problem_type = 'regression'
+                test_size = 0.2
+
+        # print(f"PROBLEMA SKLEARN: {dataset_loader}")
         individual_dict = individual.get_individual_values()
         X, y = data.data, data.target
 
-        # Convert target variable to binary classification
-        y = (y > np.median(y)).astype(int)  # 1 if above median, 0 if below
+        # Dividir y normalizar
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+        scaler = StandardScaler()
+        X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=data.feature_names)
+        X_test = pd.DataFrame(scaler.transform(X_test), columns=data.feature_names)
 
-        # Split into training and test sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        # Measure execution time
+        # Tiempo inicial
         start_time = datetime.datetime.now()
 
-        # Normalize data
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        def train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test):
-            model = RandomForestClassifier(
+        # Entrenar y predecir
+        if problem_type == 'regression':
+            model = lgb.LGBMRegressor(
                 n_estimators=int(individual_dict["n_estimators"]),
                 max_depth=individual_dict["max_depth"],
+                verbose=-1,
+                random_state=random_state
+            )
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            score = r2_score(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
+
+            # print(f"Mae: {mae} - R2: {score}")
+
+        else:
+            model = lgb.LGBMClassifier(
+                n_estimators=int(individual_dict["n_estimators"]),
+                max_depth=individual_dict["max_depth"],
+                verbose=-1,
                 random_state=42
             )
-            model.fit(X_train_scaled, y_train)
-            y_pred = model.predict(X_test_scaled)
-            return accuracy_score(y_test, y_pred)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            score = accuracy_score(y_test, y_pred)
 
-        # Calculate accuracy
-        accuracy = train_and_evaluate_model(individual_dict, X_train_scaled, X_test_scaled, y_train, y_test)
+            # print(f"Acc: {score}")
 
-        # Calculate execution time
+        # Calcular tiempo
         elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
 
-        # Penalization parameters
-        reference_time = 0.5  # Reference time for penalization
-        max_penalty_ratio = 0.01  # Maximum penalty (1% of accuracy)
+        # Penalización por tiempo
+        reference_time = 0.5  # segundos
+        max_penalty_ratio = 0.01  # 1%
+        time_penalty = max_penalty_ratio * score * (elapsed_time / reference_time)
+        time_penalty = min(time_penalty, max_penalty_ratio * score)
 
-        # Calculate continuous time-based penalty
-        # The penalty increases smoothly as time increases
-        time_penalty = max_penalty_ratio * accuracy * (elapsed_time / reference_time)
-        time_penalty = min(time_penalty, max_penalty_ratio * accuracy)
+        penalized_score = score - time_penalty
 
-        penalized_accuracy = accuracy - time_penalty
+        # print(f"[{problem_type.upper()}] Score: {score:.4f} | Penalized: {penalized_score:.4f} | Time: {elapsed_time:.2f}s")
 
-        # print(f"[Original]: {accuracy}   ---   [Penalized]: {penalized_accuracy}")
-
-        return penalized_accuracy
+        return score
 
     # -- Creamos el diccionario de bounds
     bounds = BoundCreator()
@@ -74,14 +97,14 @@ def example_1_bounds_no_predefinidos():
 
     return GenethicOptimizer(bounds.get_bound(),
                              50,
-                             30,
+                             20,
                              objective_function,
                              "bound_restricted",
                              "maximize",
                              "ea_simple",
                              3,
-                             0.3,
-                             0.3,
+                             0.25,
+                             0.35,
                              )
 
 def example_2_tsp():
@@ -179,7 +202,7 @@ def example_2_tsp():
                              )
 
 
-genetic_optimizer_object: GenethicOptimizer = example_1_bounds_no_predefinidos()
+genetic_optimizer_object: GenethicOptimizer = example_2_tsp()
 genetic_optimizer_object.plot_generation_stats()
 # genetic_optimizer_object.plot_evolution_animated()
 genetic_optimizer_object.plot_evolution()

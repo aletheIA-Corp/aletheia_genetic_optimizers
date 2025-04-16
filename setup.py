@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="aletheia_genetic_optimizers",
-    version="0.2.0",
+    version="2.0.0",
     author="Aletheia_corp",
     author_email="dsarabiatorres@gmail.com",
     description="Librería para soluciones de algoritmos genéticos de optimización",
@@ -16,7 +16,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "constants_and_tools==0.1.0",
+        "constants_and_tools==0.3.0",
         "plotly==6.0.1"
     ],
     python_requires=">=3.10",

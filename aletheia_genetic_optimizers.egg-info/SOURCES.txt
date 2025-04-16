@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+setup.py
+aletheia_genetic_optimizers/__init__.py
+aletheia_genetic_optimizers.egg-info/PKG-INFO
+aletheia_genetic_optimizers.egg-info/SOURCES.txt
+aletheia_genetic_optimizers.egg-info/dependency_links.txt
+aletheia_genetic_optimizers.egg-info/requires.txt
+aletheia_genetic_optimizers.egg-info/top_level.txt
+aletheia_genetic_optimizers/bounds/__init__.py
+aletheia_genetic_optimizers/genetic_optimizer/__init__.py
+aletheia_genetic_optimizers/individuals/__init__.py
+aletheia_genetic_optimizers/mutation_methods/__init__.py
+aletheia_genetic_optimizers/population_methods/__init__.py
+aletheia_genetic_optimizers/reproduction_methods/__init__.py
+aletheia_genetic_optimizers/tournament_methods/__init__.py
+aletheia_genetic_optimizers/variability_explossion_methods/__init__.py
