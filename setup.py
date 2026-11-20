@@ -17,7 +17,8 @@ setup(
     ],
     install_requires=[
         "constants_and_tools",
-        "plotly"
+        "plotly",
+        "joblib>=1.3"
     ],
     python_requires=">=3.10",
 )

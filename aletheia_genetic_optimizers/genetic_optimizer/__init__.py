@@ -1,4 +1,5 @@
 from typing import Callable, Dict
+from aletheia_genetic_optimizers.evaluation_methods import Evaluation
 from aletheia_genetic_optimizers.tournament_methods import *
 from aletheia_genetic_optimizers.individuals import Individual
 from aletheia_genetic_optimizers.reproduction_methods import Reproduction
@@ -24,6 +25,8 @@ class GenethicOptimizer:
                  early_stopping_generations: Literal['gradient'] | int = 'gradient',
                  variability_explossion_mode: Literal['crazy'] = 'crazy',
                  variability_round_decimals: int = 3,
+                 evaluation_method: Literal['sequential', 'process'] = 'process',
+                 evaluation_workers: int = 4,
                  ):
         """
         Clase-Objeto padre para crear un algoritmo genético cuántico basado en QAOA y generacion de aleatoriedad cuántica
@@ -46,6 +49,8 @@ class GenethicOptimizer:
         :param variability_round_decimals: Decimales a los que redondear las estadisticas de cálculo de moda necesarias para la explosion de variabilidad. Por ejemplo,
         en un caso de uso que busque accuracy, podría ser con 2 o 3 decimales. para casos de uso que contengan números muy bajos, habría que agregar más.
 
+        :param evaluation_method: Evaluación 'sequential' o 'process' (por defecto, procesos).
+        :param evaluation_workers: Número máximo de trabajadores simultáneos (por defecto, 4).
         """
 
         # -- Almaceno propiedades
@@ -53,6 +58,8 @@ class GenethicOptimizer:
         self.num_generations: int = num_generations
         self.num_individuals: int = num_individuals
         self.objective_function: Callable = objective_function
+        self.evaluation_method: Literal['sequential', 'process'] = evaluation_method
+        self.evaluation_workers: int = evaluation_workers
         self.problem_restrictions: Literal['bound_restricted', 'full_restricted'] = problem_restrictions
         self.problem_type: str = problem_type
         self.tournament_method: str = tournament_method
@@ -103,18 +110,31 @@ class GenethicOptimizer:
         # -- Validamos los inputs
         self.validate_input_parameters()
 
+        # -- Configuramos la evaluación antes de crear la población
+        self.EVALUATION: Evaluation = Evaluation(self.objective_function, self.evaluation_method, self.evaluation_workers)
+
         # -- Creamos el objeto poblacion y la poblacion inicial
         self.POPULATION: Population = Population(self.bounds_dict, self.num_individuals, self.problem_restrictions, self.variability_round_decimals)
 
         # -- Creamos las listas de individuos que vamos a ir usando
         self.POPULATION.create_population()
 
+        # -- Reutilizamos los trabajadores durante toda la evolución y liberamos el contexto al terminar
+        with self.EVALUATION:
+            self.run_genetic_iterations()
+
+    def run_genetic_iterations(self) -> None:
+        """
+        Ejecuta la evaluación inicial y el ciclo de selección, reproducción y mutación.
+        :return: None. Las poblaciones y estadísticas se almacenan en la instancia.
+        """
+
         # -- Pasamos a cada individuo de la generacion 0 por la funcion de coste
         if self.verbose:
             self.IT.header_print(f"Generacion 0")
             self.IT.sub_intro_print("Ejecutando funcion objetivo en los individuos.....")
-        for individual in self.POPULATION.populuation_dict[0]:
-            individual.individual_fitness = self.objective_function(individual)
+        self.EVALUATION.run_evaluation(self.POPULATION.populuation_dict[0])
+        self.POPULATION.get_generation_fitness_statistics(0)
 
         if self.verbose:
             self.IT.info_print("Funcion objetivo ejecutada correctamente")
@@ -154,9 +174,8 @@ class GenethicOptimizer:
             # -- Pasamos a cada individuo de la gen=gen por la funcion de coste
             if self.verbose:
                 self.IT.sub_intro_print("Ejecutando funcion objetivo en los individuos.....")
-            for individual in self.POPULATION.populuation_dict[gen]:
-                if not individual.malformation:
-                    individual.individual_fitness = self.objective_function(individual)
+            self.EVALUATION.run_evaluation(self.POPULATION.populuation_dict[gen])
+            self.POPULATION.get_generation_fitness_statistics(gen)
 
             if self.verbose:
                 self.IT.info_print("Funcion objetivo ejecutada correctamente")
@@ -249,7 +268,7 @@ class GenethicOptimizer:
             self.IT.info_print(f"Individuo {pad_number(i)}: {ind.get_individual_values()} - Generación: {ind.generation} - [Fitness]: {ind.individual_fitness}")
 
         self.IT.sub_intro_print(f"Información de la evolución de las distribuciones en cada generación")
-        self.IT.print_tabulate_df(self.POPULATION.get_generation_fitness_statistics(generation), row_print=self.num_generations+1)
+        self.IT.print_tabulate_df(self.POPULATION.generations_fitness_statistics_df, row_print=self.num_generations+1)
 
     def plot_generation_stats(self) -> None:
         self.POPULATION.plot_generation_stats(self.variability_explosion_starts_in_generation)

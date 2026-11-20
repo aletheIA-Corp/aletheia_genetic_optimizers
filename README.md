@@ -13,6 +13,29 @@
 
 ## Introducción
 
+### Evaluación de la función objetivo
+
+La función objetivo se evalúa por defecto mediante procesos, con un máximo de cuatro trabajadores simultáneos:
+
+```python
+optimizer = GenethicOptimizer(
+    bounds_dict=bounds.get_bound(),
+    num_generations=50,
+    num_individuals=20,
+    objective_function=objective_function,
+    evaluation_method="process",
+    evaluation_workers=4,
+)
+```
+
+Para evaluar sin procesos, utiliza `evaluation_method="sequential"`. El número de trabajadores debe ser un entero mayor que cero. Con un solo trabajador, joblib ejecuta las evaluaciones en el proceso principal.
+
+La clase `Evaluation` utiliza joblib con el motor loky, admite funciones internas y reutiliza los trabajadores entre generaciones. Solo se evalúan individuos sin malformaciones y se espera a completar la generación antes de continuar. Los fitness se asignan a los individuos originales en su orden correspondiente. Los errores de la función objetivo se propagan y detienen la optimización.
+
+La función objetivo debe devolver el fitness: las modificaciones realizadas sobre individuos o variables externas dentro de los trabajadores no se transfieren al proceso principal. Las funciones que capturan recursos no serializables, como conexiones abiertas, requieren adaptar esos recursos. Las funciones estocásticas deben gestionar sus propias semillas si se necesitan resultados reproducibles.
+
+Cada proceso puede consumir memoria adicional. Ajusta `evaluation_workers` según la RAM necesaria por evaluación. Se limita a uno el número de hilos internos de las bibliotecas nativas compatibles con joblib; si la función objetivo configura explícitamente sus propios hilos, ajusta también esa configuración para evitar saturar la CPU. Las estadísticas de cada generación se calculan independientemente de `verbose`.
+
 Este proyecto implementa un algoritmo genético clásico diseñado para abordar problemas de optimización combinatoria. 
 
 La arquitectura del algoritmo utiliza los principios clásicos de la evolución, buscando así, encontrar soluciones óptimas sin la necesidad de recorrer todo el espacio de datos.
