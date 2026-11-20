@@ -12,7 +12,7 @@ import numpy as np
 class Population:
     def __init__(self, bounds_dict: Dict[str, Tuple[Union[int, float]]], num_individuals: int,
                  problem_restrictions: Literal['bound_restricted', 'full_restricted'], round_decimals: int = 3):
-        self.IT: InfoTools = InfoTools
+        self.IT: InfoTools = InfoTools()
         self.bounds_dict: Dict[str, Tuple[Union[int, float]]] = bounds_dict
         self.num_individuals: int = num_individuals
         self.problem_restrictions: Literal['bound_restricted', 'full_restricted'] = problem_restrictions

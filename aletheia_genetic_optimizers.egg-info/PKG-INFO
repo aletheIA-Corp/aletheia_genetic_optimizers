@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: aletheia_genetic_optimizers
-Version: 2.0.0
+Version: 2.3.3
 Summary: Librería para soluciones de algoritmos genéticos de optimización
 Home-page: https://github.com/aletheIA-Corp/aletheia_genetic_optimizers
 Author: Aletheia_corp
@@ -10,8 +10,8 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
-Requires-Dist: constants_and_tools==0.3.0
-Requires-Dist: plotly==6.0.1
+Requires-Dist: constants_and_tools
+Requires-Dist: plotly
 Dynamic: author
 Dynamic: author-email
 Dynamic: classifier
